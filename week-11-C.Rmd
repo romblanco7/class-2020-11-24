@@ -8,6 +8,7 @@ knitr::opts_chunk$set(echo = FALSE)
 library(PPBDS.data)
 library(rstanarm)
 library(tidyverse)
+library(infer)
 
 # Same data clean up as last week.
 
@@ -25,10 +26,20 @@ week_11 <- shaming %>%
 **Prompt:** Create a fitted model object called `fit_1` using this formula or, if you want, a formula which you prefer. I recommend not making your model execessively complex.
 
 primary_06 ~ solo + primary_04 + treatment + solo:treatment
+```{r}
+fit_1 <- stan_glm(data = week_11_small,
+                  formula = primary_06 ~ solo + primary_04 + treatment + solo:treatment,
+                refresh = 0)
+
+print(fit_1, digits = 4)
+
+week_11_small <- week_11 %>%
+rep_sample_n(5000)
+```
 
 (Assume that you have already completed a cross-validation analysis and chosen this one model to use going forward.)
 
-* Which data set should you use to fit the model? Explain why.
+* Which data set should you use to fit the model? Explain why. 
 
 * Interpret the fitted model. Should we keep all these variables? And the interaction term?
 
@@ -38,9 +49,45 @@ primary_06 ~ solo + primary_04 + treatment + solo:treatment
 
 **Prompt:** What is the causal effect of receiving the Neighbors postcard as compared to being in the control group? Provide a posterior probability distribution.
 
+
 * One way to answer this question is to use `posterior_predict()`. Do that. Make it look nice! Write a sentence or two interpreting the answer.
 
 * A second approach uses `posterior_epred()`. Do that. Make it look nice! Write a sentence or two interpreting the answer.
+
+```{r}
+new_obj <- tibble(treatment = c("Neighbors","Control"),
+                  solo = TRUE,
+                  primary_04 = "Yes")
+
+pp <- posterior_predict(fit_1, newdata = new_obj) %>%
+  as_tibble() %>%
+  rename(Neighbors = `1`, 
+         Control = `2`) %>%
+  mutate(diff = Neighbors - Control) %>%
+  ggplot(aes(x = diff)) +
+  geom_histogram(aes(y = after_stat(count/sum(count))), bins = 30, color = "seagreen4") +
+  labs(title = "Posterior Predictive Distribution for Causal Effect of Neighbors Postcard",
+       subtitle = "Individual expected value has a lot uncertainty",
+       x = "Change in voting likelihood",
+       y = "Count") +
+  theme_classic()
+
+pe <- posterior_epred(fit_1, newdata = new_obj) %>%
+  as_tibble() %>%
+  rename(Neighbors = `1`, 
+         Control = `2`) %>%
+  mutate(diff = Neighbors - Control) %>%
+  ggplot(aes(x = diff)) +
+  geom_histogram(aes(y = after_stat(count/sum(count))), bins = 30, color = "seagreen4") +
+  labs(title = "Posterior Predictive Distribution for Causal Effect of Neighbors Postcard",
+       subtitle = "Expected value is clearly positive",
+       x = "Difference",
+       y = "Change in voting likelihood") + 
+  theme_classic()
+
+pe
+pp
+```
 
 
 ## Scene 3
